@@ -6,17 +6,11 @@ from collections import Counter
 import re
 import nltk
 nltk.download('punkt')
- 
 
-import os
-import nltk
-nltk.download('punkt')
-from nltk.tokenize import word_tokenize
+# ---------- Preprocessing & Clustering Logic ---------- #
 
-# Preprocessing functions
 ps = PorterStemmer()
 stopwords = set(["in", "for", "the", "of", "and", "a", "an", "to", "on", "by"])
-
 
 def tokenize_and_stem(keyword):
     keyword = keyword.lower()
@@ -26,14 +20,12 @@ def tokenize_and_stem(keyword):
     stems = [ps.stem(t) for t in tokens]
     return stems
 
-
 def preprocess_keywords(keywords):
     processed = []
     for kw in keywords:
         stems = tokenize_and_stem(kw)
         processed.append({'original': kw, 'stems': set(stems), 'stems_list': stems})
     return processed
-
 
 def cluster_keywords(data, cluster_key, level=1, max_level=3):
     exact = []
@@ -63,7 +55,6 @@ def cluster_keywords(data, cluster_key, level=1, max_level=3):
     result['branches'] = branches
     return result
 
-
 def build_keyword_tree(keywords, base_word=None):
     processed = preprocess_keywords(keywords)
     if base_word:
@@ -76,21 +67,29 @@ def build_keyword_tree(keywords, base_word=None):
     base_data = [kw for kw in processed if base_stem in kw['stems']]
     return cluster_keywords(base_data, {base_stem}, level=1, max_level=3)
 
-
-def display_tree(tree, level=0):
-    indent = " " * level
+def display_tree_expander(tree, level=0):
+    """
+    Displays the keyword tree using Streamlit expanders for TreeView functionality.
+    """
     cluster_key_display = ', '.join(sorted(tree['cluster_key']))
-    st.markdown(f"{indent}**Cluster:** `{cluster_key_display}`")
-    if tree.get('exact'):
-        for kw in tree['exact']:
-            st.markdown(f"{indent}- {kw}")
-    if tree.get('extended'):
-        for kw in tree['extended']:
-            st.markdown(f"{indent}- {kw} _(4+ words)_")
-    if 'branches' in tree:
-        for _, branch in tree['branches'].items():
-            display_tree(branch, level + 1)
+    
+    with st.expander(f"Cluster: {cluster_key_display}"):
+        # Exact matches at this node
+        if tree.get('exact'):
+            st.markdown(f"**Exact Matches ({len(tree['exact'])}):**")
+            for kw in tree['exact']:
+                st.markdown(f"- {kw}")
 
+        # Extended keywords (4+ words) that belong to this node
+        if tree.get('extended'):
+            st.markdown(f"**Extended Keywords (4+ words, {len(tree['extended'])}):**")
+            for kw in tree['extended']:
+                st.markdown(f"- {kw}")
+
+        # Recursive display of child branches
+        if 'branches' in tree:
+            for _, branch in tree['branches'].items():
+                display_tree_expander(branch, level + 1)
 
 def tree_to_rows(tree, parent_path=None):
     """
@@ -116,35 +115,49 @@ def tree_to_rows(tree, parent_path=None):
 
     return rows
 
+# ---------- Streamlit App UI ---------- #
 
-# ------------------ STREAMLIT APP ------------------
+st.set_page_config(page_title="Keyword Clustering Tool", layout="wide")
+st.title("🔍 Keyword Clustering App (TreeView)")
 
-st.title("Keyword Clustering App")
+st.markdown("""
+Upload a **CSV file** that contains your keywords, and we'll automatically cluster them in a hierarchical TreeView.
+""")
 
+# Upload CSV file
 uploaded_file = st.file_uploader("Upload your CSV file with keywords", type=["csv"])
+
+# Optional base keyword
 base_word = st.text_input("Optional: Enter a base keyword to cluster (leave blank to auto-select most common)")
 
 if uploaded_file:
     df = pd.read_csv(uploaded_file)
+    st.success("✅ File uploaded successfully!")
     st.write("Preview of uploaded data:")
     st.dataframe(df.head())
 
+    # Column selection
     column = st.selectbox("Select the keyword column", df.columns)
     keyword_list = df[column].dropna().tolist()
 
-    if st.button("Generate Clusters"):
-        with st.spinner("Processing..."):
+    # Tree depth slider
+    max_level = st.slider("Select tree depth (levels)", min_value=2, max_value=5, value=3)
+
+    # Generate clusters button
+    if st.button("🚀 Generate Clusters"):
+        with st.spinner("Processing your keywords..."):
+            # Build the tree
             tree = build_keyword_tree(keyword_list, base_word=base_word.strip() or None)
 
-            # Display in app
-            st.subheader("Clustered Keyword Tree")
-            display_tree(tree)
+            # Display tree in expanders
+            st.subheader("🌳 Clustered Keyword Tree")
+            display_tree_expander(tree)
 
-            # Prepare CSV output
+            # Prepare CSV download
             rows = tree_to_rows(tree)
             result_df = pd.DataFrame(rows)
 
-            # Download link for CSV
+            # Download button for CSV
             csv = result_df.to_csv(index=False).encode('utf-8')
             st.download_button(
                 label="📥 Download Clusters as CSV",
@@ -152,3 +165,6 @@ if uploaded_file:
                 file_name='clustered_keywords.csv',
                 mime='text/csv'
             )
+
+else:
+    st.info("👆 Please upload your CSV file to begin.")
