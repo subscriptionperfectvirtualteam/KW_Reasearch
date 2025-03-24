@@ -1,3 +1,7 @@
 streamlit
 pandas
 nltk
+streamlit==1.31.1
+pandas==2.2.1
+nltk==3.8.1
+
