@@ -5,8 +5,8 @@ from nltk.tokenize import word_tokenize
 from collections import Counter
 import re
 import nltk
-
-nltk.download('punkt') 
+nltk.download('punkt')
+ 
 
 import os
 import nltk
