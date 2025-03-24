@@ -6,7 +6,12 @@ from collections import Counter
 import re
 import nltk
 
+nltk.download('punkt') 
+
+import os
+import nltk
 nltk.download('punkt')
+from nltk.tokenize import word_tokenize
 
 # Preprocessing functions
 ps = PorterStemmer()
